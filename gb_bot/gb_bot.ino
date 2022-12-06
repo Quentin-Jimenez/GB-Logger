@@ -8,9 +8,12 @@
 // LCD Pins
 const int rs = 16, en = 5, d4 = 4, d5 = 0, d6 = 14, d7 = 12;
 
+//
+String selections = {"Take a GB", "Change Water", "Change Bottle"}
+int selectpos = 0;
 
 // GB Takers
-String names[] = {"Quentin", "Kev", "Jonah", "Aleks", "Brian", "Theo", "Liam", "Jack", "Jared", "Tristan", "Tyler", "Werner", "David", "Mike", "Kam", "Seb", "Other" };
+String names[] = {"Quentin", "Kev", "Tyler", "Aleks", "Seb", "Kam", "Liam", "Jack", "Someone Else"  "Jared", "Mike", "David", "Werner", "Jonah", "Tristan", "Theo", "Brian", "Restart"};
 int namepos = 0;
 #define NUMITEMS(arg) ((int) (sizeof (arg) / sizeof (arg [0])))
 // Sizes
@@ -36,7 +39,7 @@ int scroll = 0;
 
 
 // Controls State of Entry
-int state = 0; // 0 = Default (Names), 1 == Size, 2 == Room, 3 == Confirm
+int state = 0; // 0 = Option Selector (Default), 1 = Names, 1 == Size, 2 == Room, 3 == Confirm
 
 
 // WiFi
@@ -49,6 +52,9 @@ const char* gb_topic = "Lodge/Room8/GBData";
 const char* mqtt_username = "brothers1883"; // MQTT username
 const char* mqtt_password = "brothers1883"; // MQTT password
 const char* clientID = "client_room8"; // MQTT client ID
+
+// Idle
+int idlecount = 0;
 
 
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -120,161 +126,227 @@ void loop() {
   // Read Button Inputs From Analog, 1 100K Resistor and 2K resistors in series
   int value = analogRead(A0);
 
-  Serial.println(value);
+  //Serial.println(value);
   //Serial.println(pos);
-  Serial.println(state);
+  //Serial.println(state);
+
+  if(idlecount > 10*90 && value > 1000){ // Idle after 90 seconds of no input until a button is pressed
+    // Do idle thing, text scrolling
+    lcd.clear();
+    lcd.print("IDLE");
+  }else{ 
+    // Not idle anymore
   
-  if (value > 1020 && value < 1030){
-    // No Button Press
-    
-  } else if (value > 0 && value < 25){
-    
-    // Right Button
-    
-    if(state==0){
-      namepos++;
-    }else if(state==1){
-      sizepos++;
-    }else if(state==2){
-      roompos++;
-    }else if(state==3){
-      confirmpos++;
-    }
-    delay(250);
-    
-  }else if (value > 250 && value < 300){
-    
-    // Center Button
-    
-    if(state==0){
-      state++;
-    }else if(state==1){
-      if(sizepos==NUMITEMS(sizes)-1){ // Restart
-        resetFunc(); 
-      }else{
-        state++;
+  
+    if (value > 1020 && value < 1030){
+      idlecount++;
+      
+    } else if (value > 0 && value < 25){
+      
+      // Right Button
+      if(state==0){
+        selectpos++;
+      }else if(state==1){
+        namepos++;
+      }else if(state==2){
+        sizepos++;
+      }else if(state==3){
+        roompos++;
+      }else if(state==4){
+        confirmpos++;
       }
-    }else if(state==2){
-      if(roompos==NUMITEMS(rooms)-1){ // Restart
-        resetFunc(); 
-      }else{
-        state++;
-      }
-    }else if(state==3){ // Confirm State
-      if(confirmpos==NUMITEMS(confirm)-1){ // Restart
-        resetFunc(); 
-      }else{
-        // Confirmed Entry
-        lcd.clear();
-        lcd.print("Transmitting...");
-        
-        connect_MQTT();
-        delay(10);
-        
-        discord.send(names[namepos] + " took a " + sizes[sizepos] + " GB in " + rooms[roompos]);
-        
-        if(client.publish(gb_topic, String(names[namepos] + "," + sizes[sizepos] + "," + rooms[roompos]).c_str())){
-          Serial.println("Successfully sent!");
+      delay(250);
+      
+    }else if (value > 250 && value < 300){
+      
+      // Center Button
+      if(state==0){
+        if(selectpos==0){ // Initial menu, take gb selected
+          state++;
+        }else if(selectpos==1){ // Change Water
+  
           lcd.clear();
-          lcd.print("Success!");
+          lcd.print("Transmitting...");
+          
+          connect_MQTT();
+          delay(10);
+          
+          discord.send("The GB water was changed");
+          
+          if(client.publish(gb_topic, String("water").c_str())){
+            Serial.println("Successfully sent!");
+            lcd.clear();
+            lcd.print("Success!");
+          }
+          delay(10);
+          client.disconnect();
+          resetFunc(); 
+          
+        }else if(selectpos==2){ // Change Bottle
+  
+          lcd.clear();
+          lcd.print("Transmitting...");
+          
+          connect_MQTT();
+          delay(10);
+          
+          discord.send("The GB bottle was changed");
+          
+          if(client.publish(gb_topic, String("bottle").c_str())){
+            Serial.println("Successfully sent!");
+            lcd.clear();
+            lcd.print("Success!");
+          }
+          delay(10);
+          client.disconnect();
+          resetFunc(); 
+          
         }
-        delay(10);
-        client.disconnect();
-        delay(1500);
-        
-        lcd.clear();
-        lcd.print("Enjoy Your GB!");
-        delay(1500);
-
-        // Print Weed
-        lcd.clear();
-        lcd.setCursor(7, 0);
-        lcd.write(byte(0));
-        lcd.setCursor(8, 0);
-        lcd.write(byte(2));
-        lcd.setCursor(7, 1);
-        lcd.write(byte(1));
-        lcd.setCursor(8, 1);
-        lcd.write(byte(3));
-        delay(1500);
-        
-        resetFunc(); 
+      }
+      if(state==1){
+        if(sizepos==NUMITEMS(names)-1){ // Restart
+          resetFunc(); 
+        }else{
+          state++;
+        }
+      }else if(state==2){
+        if(sizepos==NUMITEMS(sizes)-1){ // Restart
+          resetFunc(); 
+        }else{
+          state++;
+        }
+      }else if(state==3){
+        if(roompos==NUMITEMS(rooms)-1){ // Restart
+          resetFunc(); 
+        }else{
+          state++;
+        }
+      }else if(state==4){ // Confirm State
+        if(confirmpos==NUMITEMS(confirm)-1){ // Restart
+          resetFunc(); 
+        }else{
+          // Confirmed Entry
+          lcd.clear();
+          lcd.print("Transmitting...");
+          
+          connect_MQTT();
+          delay(10);
+          
+          discord.send(names[namepos] + " took a " + sizes[sizepos] + " GB in " + rooms[roompos]);
+          
+          if(client.publish(gb_topic, String(names[namepos] + "," + sizes[sizepos] + "," + rooms[roompos]).c_str())){
+            Serial.println("Successfully sent!");
+            lcd.clear();
+            lcd.print("Success!");
+          }
+          delay(10);
+          client.disconnect();
+          delay(1500);
+          
+          lcd.clear();
+          lcd.print("Enjoy Your GB!");
+          delay(1500);
+  
+          // Print Weed
+          lcd.clear();
+          lcd.setCursor(7, 0);
+          lcd.write(byte(0));
+          lcd.setCursor(8, 0);
+          lcd.write(byte(2));
+          lcd.setCursor(7, 1);
+          lcd.write(byte(1));
+          lcd.setCursor(8, 1);
+          lcd.write(byte(3));
+          delay(1500);
+          
+          resetFunc(); 
+        }
+      }
+      delay(250);
+      
+    }else if (value > 430 && value < 480){
+      
+      // Left Button
+      if(state==0){
+        selectpos--;
+      }else if(state==1){
+        namepos--;
+      }else if(state==2){
+        sizepos--;
+      }else if(state==3){
+        roompos--;
+      }else if(state==4){
+        confirmpos--;
+      }
+      delay(250);
+      
+    }
+    
+    // Loop Positions in circle
+    if(state == 0){
+      if(selectpos > NUMITEMS(selections)-1){
+        selectpos = 0;
+      }else if(selectpos < 0){
+        selectpos = NUMITEMS(selections)-1;
+      }
+    }else if(state == 1){
+      if(namepos > NUMITEMS(names)-1){
+        namepos = 0;
+      }else if(namepos < 0){
+        namepos = NUMITEMS(names)-1;
+      }
+    }else if(state == 2){
+      if(sizepos > NUMITEMS(sizes)-1){
+        sizepos = 0;
+      }else if(sizepos < 0){
+        sizepos = NUMITEMS(sizes)-1;
+      }
+    }else if(state == 3){
+      if(roompos > NUMITEMS(rooms)-1){
+        roompos = 0;
+      }else if(roompos < 0){
+        roompos = NUMITEMS(rooms)-1;
+      }
+    }else if(state == 4){
+      if(confirmpos > NUMITEMS(confirm)-1){
+        confirmpos = 0;
+      }else if(confirmpos < 0){
+        confirmpos = NUMITEMS(confirm)-1;
       }
     }
-    delay(250);
-    
-  }else if (value > 430 && value < 480){
-    
-    // Left Button
-    
-    if(state==0){
-      namepos--;
-    }else if(state==1){
-      sizepos--;
-    }else if(state==2){
-      roompos--;
-    }else if(state==3){
-      confirmpos--;
-    }
-    delay(250);
-    
-  }
   
-  // Loop Positions in circle
-  if(state == 0){
-    if(namepos > NUMITEMS(names)-1){
-      namepos = 0;
-    }else if(namepos < 0){
-      namepos = NUMITEMS(names)-1;
+    // State Printer
+    if(state==0){
+      lcd.clear();
+      lcd.print(selections[selectpos]); //names[pos]
+    }else if(state==1){
+      // Serial.println(value); //names[pos]
+      lcd.clear();
+      lcd.print(names[namepos]); //names[pos]
+    }else if (state==2){
+      lcd.clear();
+      lcd.print(sizes[sizepos]);
+    }else if (state==3){
+      lcd.clear();
+      lcd.print(rooms[roompos]);
+    }else if (state==4){
+      lcd.clear();
+      lcd.print(confirm[confirmpos]);
     }
-  }else if(state == 1){
-    if(sizepos > NUMITEMS(sizes)-1){
-      sizepos = 0;
-    }else if(sizepos < 0){
-      sizepos = NUMITEMS(sizes)-1;
+  
+    /*
+    lcd.setCursor(bottom, 1);
+    lcd.print("She Call Me Gerb");
+    scroll++;
+  
+    Serial.println(bottom);
+    if(bottom == -1 * String("She Call Me Gerb").length()){
+      bottom = 15;
     }
-  }else if(state == 2){
-    if(roompos > NUMITEMS(rooms)-1){
-      roompos = 0;
-    }else if(roompos < 0){
-      roompos = NUMITEMS(rooms)-1;
+    if(scroll % 4 == 0){
+      bottom--;
     }
-  }else if(state == 3){
-    if(confirmpos > NUMITEMS(confirm)-1){
-      confirmpos = 0;
-    }else if(confirmpos < 0){
-      confirmpos = NUMITEMS(confirm)-1;
-    }
+    */
+    delay(100); 
   }
-
-  // State Printer
-  if(state==0){
-    // Serial.println(value); //names[pos]
-    lcd.clear();
-    lcd.print(names[namepos]); //names[pos]
-  }else if (state==1){
-    lcd.clear();
-    lcd.print(sizes[sizepos]);
-  }else if (state==2){
-    lcd.clear();
-    lcd.print(rooms[roompos]);
-  }else if (state==3){
-    lcd.clear();
-    lcd.print(confirm[confirmpos]);
-  }
-
-  /*
-  lcd.setCursor(bottom, 1);
-  lcd.print("She Call Me Gerb");
-  scroll++;
-
-  Serial.println(bottom);
-  if(bottom == -1 * String("She Call Me Gerb").length()){
-    bottom = 15;
-  }
-  if(scroll % 4 == 0){
-    bottom--;
-  }
-  */
-  delay(100); 
 }
