@@ -9,11 +9,11 @@
 const int rs = 16, en = 5, d4 = 4, d5 = 0, d6 = 14, d7 = 12;
 
 //
-String selections = {"Take a GB", "Change Water", "Change Bottle"}
+String selections[] = {"Take a GB", "Change Water", "Change Bottle"};
 int selectpos = 0;
 
 // GB Takers
-String names[] = {"Quentin", "Kev", "Tyler", "Aleks", "Seb", "Kam", "Liam", "Jack", "Someone Else"  "Jared", "Mike", "David", "Werner", "Jonah", "Tristan", "Theo", "Brian", "Restart"};
+String names[] = {"Quentin", "Kev", "Tyler", "Aleks", "Seb", "Kam", "Liam", "Jack", "Someone Else", "Jared", "Mike", "David", "Werner", "Jonah", "Tristan", "Theo", "Brian", "Restart"};
 int namepos = 0;
 #define NUMITEMS(arg) ((int) (sizeof (arg) / sizeof (arg [0])))
 // Sizes
@@ -126,15 +126,15 @@ void loop() {
   // Read Button Inputs From Analog, 1 100K Resistor and 2K resistors in series
   int value = analogRead(A0);
 
-  //Serial.println(value);
+  Serial.println(value);
   //Serial.println(pos);
-  //Serial.println(state);
+  Serial.println(state);
 
   if(idlecount > 10*90 && value > 1000){ // Idle after 90 seconds of no input until a button is pressed
     // Do idle thing, text scrolling
     lcd.clear();
     lcd.print("IDLE");
-  }else{ 
+  }else{     
     // Not idle anymore
   
   
@@ -142,6 +142,7 @@ void loop() {
       idlecount++;
       
     } else if (value > 0 && value < 25){
+      idlecount = 0;
       
       // Right Button
       if(state==0){
@@ -158,7 +159,8 @@ void loop() {
       delay(250);
       
     }else if (value > 250 && value < 300){
-      
+      idlecount = 0;
+
       // Center Button
       if(state==0){
         if(selectpos==0){ // Initial menu, take gb selected
@@ -202,8 +204,7 @@ void loop() {
           resetFunc(); 
           
         }
-      }
-      if(state==1){
+      }else if(state==1){
         if(sizepos==NUMITEMS(names)-1){ // Restart
           resetFunc(); 
         }else{
@@ -265,7 +266,8 @@ void loop() {
       delay(250);
       
     }else if (value > 430 && value < 480){
-      
+      idlecount = 0;
+
       // Left Button
       if(state==0){
         selectpos--;
