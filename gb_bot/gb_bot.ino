@@ -1,3 +1,4 @@
+// Name Resetting, AFK Scroll, Water and bottle confirm, error message
 
 #include <LiquidCrystal.h>
 #include "ESP8266WiFi.h" 
@@ -39,7 +40,7 @@ int scroll = 0;
 
 
 // Controls State of Entry
-int state = 0; // 0 = Option Selector (Default), 1 = Names, 1 == Size, 2 == Room, 3 == Confirm
+int state = 0; // 0 = Option Selector (Default), 1 = Names, 2 == Size, 3 == Room, 4 == GBConfirm, 5 = Water Confirm, 6 = Bottle Confirm
 
 
 // WiFi
@@ -129,13 +130,23 @@ void loop() {
   Serial.println(value);
   //Serial.println(pos);
   Serial.println(state);
+  
+  Serial.println(idlecount);
 
-  if(idlecount > 10*90 && value > 1000){ // Idle after 90 seconds of no input until a button is pressed
+  if(idlecount >= 10*90 && value > 1000){ // Idle after 90 seconds of no input until a button is pressed
     // Do idle thing, text scrolling
-    lcd.clear();
-    lcd.print("IDLE");
+    if(idlecount == 10*90){
+      lcd.clear();
+      lcd.print("Press Any Button To Begin | GB LOGGER v1.1 | Theo has a SBAC | Its Always GB OClock Somewhere | 3rd Deck > 2nd Deck | ");
+      lcd.autoscroll();
+    }
+    idlecount++;
+    lcd.scrollDisplayLeft();
+    delay(750);
+  
   }else{     
     // Not idle anymore
+    lcd.noAutoscroll();
   
   
     if (value > 1020 && value < 1030){
@@ -153,7 +164,7 @@ void loop() {
         sizepos++;
       }else if(state==3){
         roompos++;
-      }else if(state==4){
+      }else if(state==4 || state==5 || state==6){
         confirmpos++;
       }
       delay(250);
@@ -166,46 +177,14 @@ void loop() {
         if(selectpos==0){ // Initial menu, take gb selected
           state++;
         }else if(selectpos==1){ // Change Water
-  
-          lcd.clear();
-          lcd.print("Transmitting...");
-          
-          connect_MQTT();
-          delay(10);
-          
-          discord.send("The GB water was changed");
-          
-          if(client.publish(gb_topic, String("water").c_str())){
-            Serial.println("Successfully sent!");
-            lcd.clear();
-            lcd.print("Success!");
-          }
-          delay(10);
-          client.disconnect();
-          resetFunc(); 
-          
+          // Send to Water Confirm
+          state = 5;
         }else if(selectpos==2){ // Change Bottle
-  
-          lcd.clear();
-          lcd.print("Transmitting...");
-          
-          connect_MQTT();
-          delay(10);
-          
-          discord.send("The GB bottle was changed");
-          
-          if(client.publish(gb_topic, String("bottle").c_str())){
-            Serial.println("Successfully sent!");
-            lcd.clear();
-            lcd.print("Success!");
-          }
-          delay(10);
-          client.disconnect();
-          resetFunc(); 
-          
+          // Send to Bottle Confirm
+          state = 6;
         }
       }else if(state==1){
-        if(sizepos==NUMITEMS(names)-1){ // Restart
+        if(namepos==NUMITEMS(names)-1){ // Restart
           resetFunc(); 
         }else{
           state++;
@@ -233,36 +212,85 @@ void loop() {
           connect_MQTT();
           delay(10);
           
-          discord.send(names[namepos] + " took a " + sizes[sizepos] + " GB in " + rooms[roompos]);
+          if(discord.send(names[namepos] + " took a " + sizes[sizepos] + " GB in " + rooms[roompos])){
           
-          if(client.publish(gb_topic, String(names[namepos] + "," + sizes[sizepos] + "," + rooms[roompos]).c_str())){
+            if(client.publish(gb_topic, String(names[namepos] + "," + sizes[sizepos] + "," + rooms[roompos]).c_str())){
+              Serial.println("Successfully sent!");
+              lcd.clear();
+              lcd.print("Success!");
+            }
+            delay(10);
+            client.disconnect();
+            delay(1500);
+            
+            lcd.clear();
+            lcd.print("Enjoy Your GB!");
+            delay(1500);
+    
+            // Print Weed
+            lcd.clear();
+            lcd.setCursor(7, 0);
+            lcd.write(byte(0));
+            lcd.setCursor(8, 0);
+            lcd.write(byte(2));
+            lcd.setCursor(7, 1);
+            lcd.write(byte(1));
+            lcd.setCursor(8, 1);
+            lcd.write(byte(3));
+            delay(1500);
+            
+            resetFunc(); 
+          }else{ // Discord Message Not Sent Correctly
+            lcd.clear();
+            lcd.print("Error ... Restarting");
+            delay(1500);
+            resetFunc(); 
+          }
+        }
+      }else if(state==5){ // Water Confirm State
+        if(confirmpos==NUMITEMS(confirm)-1){ // Restart
+          resetFunc(); 
+        }else{
+          lcd.clear();
+          lcd.print("Transmitting...");
+          
+          connect_MQTT();
+          delay(10);
+          
+          discord.send("The GB water was changed");
+          
+          if(client.publish(gb_topic, String("water").c_str())){
             Serial.println("Successfully sent!");
             lcd.clear();
             lcd.print("Success!");
           }
           delay(10);
           client.disconnect();
-          delay(1500);
-          
+          resetFunc(); 
+        }
+      }else if(state==6){ // Bottle Confirm State
+        if(confirmpos==NUMITEMS(confirm)-1){ // Restart
+          resetFunc(); 
+        }else{
           lcd.clear();
-          lcd.print("Enjoy Your GB!");
-          delay(1500);
-  
-          // Print Weed
-          lcd.clear();
-          lcd.setCursor(7, 0);
-          lcd.write(byte(0));
-          lcd.setCursor(8, 0);
-          lcd.write(byte(2));
-          lcd.setCursor(7, 1);
-          lcd.write(byte(1));
-          lcd.setCursor(8, 1);
-          lcd.write(byte(3));
-          delay(1500);
+          lcd.print("Transmitting...");
           
+          connect_MQTT();
+          delay(10);
+          
+          discord.send("The GB bottle was changed");
+          
+          if(client.publish(gb_topic, String("bottle").c_str())){
+            Serial.println("Successfully sent!");
+            lcd.clear();
+            lcd.print("Success!");
+          }
+          delay(10);
+          client.disconnect();
           resetFunc(); 
         }
       }
+        
       delay(250);
       
     }else if (value > 430 && value < 480){
@@ -277,7 +305,7 @@ void loop() {
         sizepos--;
       }else if(state==3){
         roompos--;
-      }else if(state==4){
+      }else if(state==4 || state==5 || state==6){
         confirmpos--;
       }
       delay(250);
@@ -309,7 +337,7 @@ void loop() {
       }else if(roompos < 0){
         roompos = NUMITEMS(rooms)-1;
       }
-    }else if(state == 4){
+    }else if(state == 4 || state==5 || state==6){
       if(confirmpos > NUMITEMS(confirm)-1){
         confirmpos = 0;
       }else if(confirmpos < 0){
@@ -331,7 +359,7 @@ void loop() {
     }else if (state==3){
       lcd.clear();
       lcd.print(rooms[roompos]);
-    }else if (state==4){
+    }else if (state==4 || state==5 || state==6){
       lcd.clear();
       lcd.print(confirm[confirmpos]);
     }
